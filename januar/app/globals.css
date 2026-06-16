@@ -1,0 +1,97 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: sans-serif;
+  font-size: 15px;
+  color: #222;
+  background: #f9f9f9;
+  padding: 24px;
+}
+
+h1 {
+  margin-bottom: 16px;
+}
+
+a {
+  color: #0070f3;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  background: #fff;
+}
+
+th, td {
+  border: 1px solid #ddd;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+th {
+  background: #f0f0f0;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 360px;
+  background: #fff;
+  padding: 20px;
+  border: 1px solid #ddd;
+}
+
+label {
+  font-weight: bold;
+  font-size: 13px;
+}
+
+input {
+  padding: 7px 10px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+  width: 100%;
+}
+
+button {
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  background: #fff;
+}
+
+button[type="submit"] {
+  background: #0070f3;
+  color: #fff;
+  border-color: #0070f3;
+}
+
+button.danger {
+  color: #c00;
+  border-color: #c00;
+}
+
+.error {
+  color: #c00;
+  font-size: 13px;
+}
+
+.nav {
+  margin-bottom: 20px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
