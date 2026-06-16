@@ -2,12 +2,14 @@
 
 Panduan lengkap membuat proyek dari awal hingga siap dijalankan.
 
+> **Catatan:** Panduan ini menggunakan **Prisma 7** yang memiliki perubahan signifikan dibanding versi sebelumnya. Lihat bagian perbedaan di bawah.
+
 ---
 
 ## Prasyarat
 
 - Node.js 18+
-- MySQL server berjalan di lokal
+- Docker (untuk menjalankan MySQL via container) atau MySQL server lokal
 - npm atau npx tersedia
 
 ---
@@ -24,24 +26,52 @@ cd januar
 ## Langkah 2 — Install Dependensi
 
 ```bash
-npm install prisma @prisma/client mysql2
+npm install prisma @prisma/client @prisma/adapter-mariadb
+```
+
+> Prisma 7 memerlukan driver adapter. Untuk MySQL/MariaDB gunakan `@prisma/adapter-mariadb`.
+
+---
+
+## Langkah 3 — Jalankan MySQL via Docker
+
+Buat file `docker-compose.yml` di root proyek:
+
+```yaml
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: stfq_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: stfq_students
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+volumes:
+  mysql_data:
+```
+
+Jalankan container:
+
+```bash
+docker compose up -d
 ```
 
 ---
 
-## Langkah 3 — Inisialisasi Prisma
+## Langkah 4 — Inisialisasi Prisma
 
 ```bash
 npx prisma init --datasource-provider mysql
 ```
 
-Perintah ini membuat:
-- `prisma/schema.prisma` — definisi model database
-- `.env` — konfigurasi koneksi database
-
 ---
 
-## Langkah 4 — Konfigurasi Database
+## Langkah 5 — Konfigurasi Database
 
 Edit file `.env`:
 
@@ -49,23 +79,38 @@ Edit file `.env`:
 DATABASE_URL="mysql://root:password@localhost:3306/stfq_students"
 ```
 
-Sesuaikan `root`, `password`, dan nama database dengan konfigurasi MySQL kamu.
+Edit file `prisma.config.ts` (dibuat otomatis oleh Prisma 7):
+
+```ts
+import "dotenv/config";
+import { defineConfig } from "prisma/config";
+
+export default defineConfig({
+  schema: "prisma/schema.prisma",
+  migrations: {
+    path: "prisma/migrations",
+  },
+  datasource: {
+    url: process.env["DATABASE_URL"],
+  },
+});
+```
 
 ---
 
-## Langkah 5 — Definisi Model
+## Langkah 6 — Definisi Model
 
 Edit `prisma/schema.prisma`:
 
 ```prisma
 generator client {
-  provider = "prisma-client"
-  output   = "../app/generated/prisma"
+  provider        = "prisma-client"
+  output          = "../app/generated/prisma"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
   provider = "mysql"
-  url      = env("DATABASE_URL")
 }
 
 model Student {
@@ -76,22 +121,40 @@ model Student {
 }
 ```
 
+> **Perubahan Prisma 7:** `url` tidak lagi ditulis di `schema.prisma`. Koneksi database dikonfigurasi di `prisma.config.ts`.
+
 ---
 
-## Langkah 6 — Buat Tabel di Database
+## Langkah 7 — Buat Tabel di Database
 
 ```bash
 npx prisma migrate dev --name init
 ```
 
-Perintah ini:
-1. Membuat database jika belum ada
-2. Menjalankan migrasi SQL
-3. Menggenerate Prisma Client di `app/generated/prisma`
+---
+
+## Langkah 8 — Konfigurasi Prisma Client
+
+Edit `lib/prisma.ts`:
+
+```ts
+import { PrismaClient } from "../app/generated/prisma/client";
+import { PrismaMariaDb } from "@prisma/adapter-mariadb";
+
+const adapter = new PrismaMariaDb(process.env.DATABASE_URL!);
+
+const globalForPrisma = global as unknown as { prisma: PrismaClient };
+
+export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter });
+
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+```
+
+> **Perubahan Prisma 7:** `PrismaClient` harus menerima `adapter` — tidak bisa diinstansiasi tanpa argumen.
 
 ---
 
-## Langkah 7 — Jalankan Dev Server
+## Langkah 9 — Jalankan Dev Server
 
 ```bash
 npm run dev
@@ -109,6 +172,7 @@ januar/
 │   ├── layout.tsx                  ← Root layout
 │   ├── globals.css                 ← CSS manual
 │   ├── page.tsx                    ← Halaman beranda
+│   ├── generated/prisma/           ← Prisma Client (di-generate)
 │   ├── students/
 │   │   ├── page.tsx                ← Daftar + tambah siswa
 │   │   └── [id]/edit/page.tsx      ← Edit siswa
@@ -120,6 +184,8 @@ januar/
 │   └── db.ts                       ← mysql2 pool (raw SQL)
 ├── prisma/
 │   └── schema.prisma
+├── prisma.config.ts                ← Konfigurasi datasource (Prisma 7)
+├── docker-compose.yml
 ├── .env
 └── package.json
 ```
@@ -165,11 +231,11 @@ await pool.execute("DELETE FROM Student WHERE id = ?", [id]);
 
 ## Halaman
 
-| URL                    | Keterangan              |
-| ---------------------- | ----------------------- |
-| `/`                    | Beranda                 |
+| URL                    | Keterangan                 |
+| ---------------------- | -------------------------- |
+| `/`                    | Beranda                    |
 | `/students`            | Daftar siswa + form tambah |
-| `/students/:id/edit`   | Form edit siswa         |
+| `/students/:id/edit`   | Form edit siswa            |
 
 ---
 
@@ -178,6 +244,8 @@ await pool.execute("DELETE FROM Student WHERE id = ?", [id]);
 ```bash
 npm run dev                          # Jalankan dev server
 npx prisma migrate dev --name init   # Buat/update tabel
-npx prisma studio                    # GUI untuk melihat isi database
 npx prisma generate                  # Generate ulang Prisma Client
+npx prisma studio                    # GUI untuk melihat isi database
+docker compose up -d                 # Jalankan MySQL container
+docker compose down                  # Hentikan MySQL container
 ```
